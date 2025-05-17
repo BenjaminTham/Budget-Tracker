@@ -5,10 +5,9 @@ import React from "react";
 import CreateTransactionDialog from "./_components/CreateTransactionDialog";
 import Overview from "./_components/Overview";
 import History from "./_components/History";
+import Logo from "@/components/Logo";
 
 async function page() {
-  const user = "User";
-
   const userSettings = await prisma.userSettings.findUnique({
     where: {
       userId: "1",
@@ -20,12 +19,15 @@ async function page() {
   }
 
   return (
-    <div className="h-full bg-background flex flex-col justify-center align-middle items-center">
-      <div className="border-b bg-card w-full flex justify-center items-center align-middle">
+    <div className=" flex flex-col justify-center align-middle items-center ">
+      <div className="border-b w-full flex justify-center items-center align-middle">
         {/* <div className="border-b"> */}
-        <div className="flex flex-row w-5/6 items-center justify-between gap-6 py-8 ">
-          <p className="text-3xl font-bold">Hello, {user}</p>
-          <div className="flex items-center gap-3">
+        <div className="flex flex-row w-5/6 items-center py-8 justify-end">
+          <div className="w-full ">
+            <Logo />
+          </div>
+
+          <div className="flex items-center gap-3  absolute">
             <CreateTransactionDialog
               trigger={
                 <Button

@@ -8,6 +8,12 @@ import React, { useState } from "react";
 import { toast } from "sonner";
 import StatsCards from "./StatsCards";
 import CategoriesStats from "./CategoriesStats";
+// import GameScene from "../../../components/GameScene";
+import dynamic from "next/dynamic"; // <-- Import dynamic
+
+const ThreeScene = dynamic(() => import("@/components/game/src/Game"), {
+  ssr: false,
+});
 
 function Overview({ userSettings }: { userSettings: UserSettings }) {
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
@@ -16,10 +22,21 @@ function Overview({ userSettings }: { userSettings: UserSettings }) {
   });
   return (
     <>
-      <div className=" w-5/6">
+      <div className=" w-5/6 ">
         <div className="w-full px-4 flex flex-wrap items-end justify-between gap-2 py-6">
+          <StatsCards
+            userSettings={userSettings}
+            from={dateRange.from}
+            to={dateRange.to}
+          />
+
+          <div className="w-full h-150 mt-1 mb-7 bg-background rounded-2xl flex justify-center items-center">
+            {/* <h1>Game here</h1> */}
+            <ThreeScene />
+          </div>
+
           <h2 className="text-3xl font-bold flex flex-grow">Overview</h2>
-          <div className="flex flex-grow items-center gap-3 justify-end">
+          <div className="flex flex-grow items-center gap-3 justify-end ">
             <DateRangePicker
               initialDateFrom={dateRange.from}
               initialDateTo={dateRange.to}
@@ -39,13 +56,7 @@ function Overview({ userSettings }: { userSettings: UserSettings }) {
             />
           </div>
         </div>
-        <div className="w-full px-4 flex flex-wrap items-end justify-between gap-2 py-6">
-          <StatsCards
-            userSettings={userSettings}
-            from={dateRange.from}
-            to={dateRange.to}
-          />
-
+        <div className="w-full px-4 flex flex-wrap items-end justify-between gap-2 py-6 ">
           <CategoriesStats
             userSettings={userSettings}
             from={dateRange.from}

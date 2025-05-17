@@ -13,8 +13,9 @@ import { Menu } from "lucide-react";
 function navbar() {
   return (
     <>
-      <DesktopNavbar />
-      <MobileNavbar />
+      {/* <DesktopNavbar /> */}
+      <SideNavbar />
+      {/* <MobileNavbar /> */}
     </>
   );
 }
@@ -23,7 +24,7 @@ const items = [
   { label: "Dashboard", link: "/" },
   { label: "Transactions", link: "/transactions" },
   { label: "Manage", link: "/manage" },
-  { label: "Settings", link: "/wizard" },
+  // { label: "Settings", link: "/wizard" },
 ];
 
 function MobileNavbar() {
@@ -82,6 +83,32 @@ function DesktopNavbar() {
         <div className="flex item-center gap-2">
           <ThemeSwitcherBtn />
         </div>
+      </nav>
+    </div>
+  );
+}
+const user = "User";
+
+function SideNavbar() {
+  return (
+    <div className="fixed left-0 top-0 h-screen w-[240px] z-50 bg-card border-r">
+      <nav className="container flex flex-col items-center justify-center pt-4 px-8   h-screen  ">
+        {/* <div className="flex flex-col h-full min-h-[60px] items-start gap-x-4 bg-green-600"> */}
+        {/* <Logo /> */}
+        {/* <div className="h-1/4"></div> */}
+        <div className="flex flex-grow h-1/3  w-full justify-center">
+          <p className="text-3xl font-bold">Hello, {user}</p>
+        </div>
+        <div className="flex flex-col h-1/3 justify-center gap-6 ">
+          {items.map((item) => (
+            <NavbarItem key={item.label} link={item.link} label={item.label} />
+          ))}
+        </div>
+        {/* </div> */}
+        <div className="flex flex-grow h-1/3 items-end pb-2 w-full justify-center ">
+          <ThemeSwitcherBtn />
+        </div>
+        <div className="flex item-center gap-2"></div>
       </nav>
     </div>
   );

@@ -14,11 +14,9 @@ function TransactionsPage() {
   });
   return (
     <>
-      <div className="border-b bg-card">
-        <div className="container flex flex-wrap items-center justify-between gap-6 py-8">
-          <div>
-            <p className="text-3xl font-bold">Transactions history</p>
-          </div>
+      <div className="border-b w-full  flex items-center justify-center bg-background ">
+        <div className="w-5/6 flex flex-wrap items-center justify-between gap-6 py-8  ">
+          <p className="text-3xl font-bold">Transactions history</p>
           <DateRangePicker
             initialDateFrom={dateRange.from}
             initialDateTo={dateRange.to}
@@ -39,8 +37,11 @@ function TransactionsPage() {
           />
         </div>
       </div>
-      <div className="container">
-        <TransactionTable from={dateRange.from} to={dateRange.to} />
+
+      <div className="w-full flex justify-center gap-2 py-6 px-4">
+        <div className="w-5/6">
+          <TransactionTable from={dateRange.from} to={dateRange.to} />
+        </div>
       </div>
     </>
   );
