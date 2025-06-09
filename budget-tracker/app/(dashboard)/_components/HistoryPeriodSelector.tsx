@@ -32,17 +32,30 @@ function HistoryPeriodSelector({
     queryFn: () => fetch(`/api/history-periods`).then((res) => res.json()),
   });
   return (
-    <div className="flex flex-wrap items-center gap-4">
+    <div className="flex flex-wrap items-center gap-4 ">
       <SkeletonWrapper isLoading={historyPeriods.isFetching} fullWidth={false}>
-        <Tabs
-          value={timeframe}
-          onValueChange={(value) => setTimeframe(value as Timeframe)}
+        <div
+          className="
+        /* --- Style for INACTIVE tabs --- */
+        /* This sets the default text color for triggers */
+        [&_button]:text-gray-600
+
+        /* --- Style for the ACTIVE tab --- */
+        /* This specifically targets the trigger when data-state='active' */
+        [&_button[data-state=active]]:!bg-[#16425B] 
+        [&_button[data-state=active]]:text-white
+      "
         >
-          <TabsList>
-            <TabsTrigger value="year">Year</TabsTrigger>
-            <TabsTrigger value="month">Month</TabsTrigger>
-          </TabsList>
-        </Tabs>
+          <Tabs
+            value={timeframe}
+            onValueChange={(value) => setTimeframe(value as Timeframe)}
+          >
+            <TabsList className="text-[#16425B] !bg-[#C8C8C8]">
+              <TabsTrigger value="year">Year</TabsTrigger>
+              <TabsTrigger value="month">Month</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </SkeletonWrapper>
       <div className="flex flex-wrap items-center gap-2">
         <SkeletonWrapper
@@ -89,7 +102,7 @@ function YearSelector({
         });
       }}
     >
-      <SelectTrigger className="w-[180px]">
+      <SelectTrigger className="w-[180px] text-[#16425B] !bg-[#C8C8C8]">
         <SelectValue />
         <SelectContent>
           {years.map((year) => (
@@ -120,7 +133,7 @@ function MonthSelector({
         });
       }}
     >
-      <SelectTrigger className="w-[180px]">
+      <SelectTrigger className="w-[180px] text-[#16425B] !bg-[#C8C8C8]">
         <SelectValue />
         <SelectContent>
           {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((month) => {

@@ -233,8 +233,8 @@ function TransactionTable({ from, to }: Props) {
               handleExportCSV(data);
             }}
           >
-            <DownloadIcon className="mr-2 h-4 w-4" />
-            Export CSV
+            <DownloadIcon className="mr-2 h-4 w-4 text-[#16425B]" />
+            <span className="text-[#16425B]">Export CSV</span>
           </Button>
           <DataTableViewOptions table={table} />
         </div>
@@ -247,7 +247,7 @@ function TransactionTable({ from, to }: Props) {
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     return (
-                      <TableHead key={header.id}>
+                      <TableHead key={header.id} className="bg-[#16425B]">
                         {header.isPlaceholder
                           ? null
                           : flexRender(
@@ -268,7 +268,10 @@ function TransactionTable({ from, to }: Props) {
                     data-state={row.getIsSelected() && "selected"}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell
+                        key={cell.id}
+                        className="text-[#16425B] !bg-[#D9DCD6] "
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()

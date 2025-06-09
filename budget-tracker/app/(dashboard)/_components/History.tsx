@@ -46,9 +46,8 @@ function History({ userSettings }: { userSettings: UserSettings }) {
     historyDataQuery.data && historyDataQuery.data.length > 0;
 
   return (
-    <div className=" w-5/6 ">
-      <h2 className="mt-12 text-3xl font-bold">History</h2>
-      <Card className="col-span-12 mt-2 w-full ">
+    <div className="w-full flex justify-end align-middle pl-20 pr-5">
+      <Card className="col-span-12 mt-2 w-full bg-[#D9DCD6]">
         <CardHeader className="gap-2">
           <CardTitle className="grid grid-flow-row justify-between gap-2 md:grid-flow-col">
             <HistoryPeriodSelector
@@ -60,15 +59,15 @@ function History({ userSettings }: { userSettings: UserSettings }) {
             <div className="flex h-10 gap-2">
               <Badge
                 variant={"outline"}
-                className="flex items-center gap-2 text-sm"
+                className="flex items-center gap-2 text-sm text-[#16425B]"
               >
-                <div className="h-4 w-4 rounded-full bg-emerald-500"></div>
+                <div className="h-4 w-4 rounded-full bg-emerald-500 "></div>
                 Income
               </Badge>
 
               <Badge
                 variant={"outline"}
-                className="flex items-center gap-2 text-sm"
+                className="flex items-center gap-2 text-sm text-[#16425B]"
               >
                 <div className="h-4 w-4 rounded-full bg-red-500"></div>
                 Expense
@@ -163,9 +162,9 @@ function History({ userSettings }: { userSettings: UserSettings }) {
               </ResponsiveContainer>
             )}
             {!dataAvailable && (
-              <Card className="flex h-[300px] flex-col items-center justify-center bg-background">
+              <Card className="flex h-[300px] flex-col items-center justify-center bg-[#D9DCD6] text-[#16425B]">
                 No data for the selected period
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm ">
                   Try selecting a different period or adding new transactions
                 </p>
               </Card>

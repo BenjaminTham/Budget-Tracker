@@ -9,9 +9,6 @@ function Logo() {
       {/* <PiggyBank className="stroke h-11 w-11 stroke-fuchsia-600 stroke-[1.5]" /> */}
       {/* <img src="../img/Logo.png" alt="Logo" /> */}
       <Image width={70} height={70} src={logoImg} alt="Logo"></Image>
-      <p className="text-3xl font-bold">
-        <span className="text-orange-400">Budget</span>Tracker
-      </p>
     </a>
   );
 }

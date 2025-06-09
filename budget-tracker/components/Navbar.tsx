@@ -9,6 +9,10 @@ import Link from "next/link";
 import { ThemeSwitcherBtn } from "./ThemeSwitcherBtn";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { Menu } from "lucide-react";
+import { MdHomeFilled } from "react-icons/md";
+import { FaMoneyCheckDollar } from "react-icons/fa6";
+import { IoMdSettings } from "react-icons/io";
+import { div } from "three/src/nodes/TSL.js";
 
 function navbar() {
   return (
@@ -21,9 +25,13 @@ function navbar() {
 }
 
 const items = [
-  { label: "Dashboard", link: "/" },
-  { label: "Transactions", link: "/transactions" },
-  { label: "Manage", link: "/manage" },
+  { label: "Dashboard", link: "/", icon: <MdHomeFilled /> },
+  {
+    label: "Transactions",
+    link: "/transactions",
+    icon: <FaMoneyCheckDollar />,
+  },
+  { label: "Manage", link: "/manage", icon: <IoMdSettings /> },
   // { label: "Settings", link: "/wizard" },
 ];
 
@@ -87,28 +95,25 @@ function DesktopNavbar() {
     </div>
   );
 }
-const user = "User";
 
 function SideNavbar() {
   return (
-    <div className="fixed left-0 top-0 h-screen w-[240px] z-50 bg-card border-r">
-      <nav className="container flex flex-col items-center justify-center pt-4 px-8   h-screen  ">
-        {/* <div className="flex flex-col h-full min-h-[60px] items-start gap-x-4 bg-green-600"> */}
-        {/* <Logo /> */}
-        {/* <div className="h-1/4"></div> */}
-        <div className="flex flex-grow h-1/3  w-full justify-center">
-          <p className="text-3xl font-bold">Hello, {user}</p>
-        </div>
-        <div className="flex flex-col h-1/3 justify-center gap-6 ">
-          {items.map((item) => (
-            <NavbarItem key={item.label} link={item.link} label={item.label} />
-          ))}
-        </div>
-        {/* </div> */}
-        <div className="flex flex-grow h-1/3 items-end pb-2 w-full justify-center ">
-          <ThemeSwitcherBtn />
-        </div>
-        <div className="flex item-center gap-2"></div>
+    <div
+      className="fixed left-3 top-1/2 -translate-y-1/2 h-11/12 w-[75px] z-50 border-r rounded-2xl"
+      style={{ backgroundColor: "#16425B" }}
+    >
+      <nav className="container flex flex-col items-center justify-start h-full w-full pt-5">
+        <Logo />
+        {items.map((item) => (
+          <NavbarItem
+            key={item.label}
+            link={item.link}
+            label={item.label}
+            icon={item.icon}
+            showLabel={false}
+          />
+        ))}
+        {/* <ThemeSwitcherBtn /> */}
       </nav>
     </div>
   );
@@ -117,10 +122,14 @@ function SideNavbar() {
 function NavbarItem({
   link,
   label,
+  icon,
+  showLabel = true,
   clickCallback,
 }: {
   link: string;
   label: string;
+  icon?: React.ReactNode; // Icon is optional
+  showLabel?: boolean;
   clickCallback?: () => void;
 }) {
   const pathname = usePathname();
@@ -132,14 +141,14 @@ function NavbarItem({
         href={link}
         className={cn(
           buttonVariants({ variant: "ghost" }),
-          "w-full justify-start text-lg text-muted-foreground hover:text-foreground",
+          "w-full justify-start text-lg text-muted-foreground hover:text-foreground mt-6",
           isActive && "text-foreground"
         )}
         onClick={() => {
           if (clickCallback) clickCallback();
         }}
       >
-        {label}
+        {icon && <span>{icon}</span>}
       </Link>
       {isActive && (
         <div className="absolute -bottom-[2px] left-1/2 hidden h-[2px] w-[80%] -translate-x-1/2 rounded-xl bg-foreground md:block"></div>

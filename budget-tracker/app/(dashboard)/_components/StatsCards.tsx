@@ -37,7 +37,7 @@ function StatsCards({ from, to, userSettings }: Props) {
   const balance = income - expense;
 
   return (
-    <div className=" flex  w-full gap-2 flex-grow ">
+    <div className=" flex flex-col w-full gap-2 flex-grow">
       <SkeletonWrapper isLoading={statsQuery.isFetching}>
         <StatCard
           formatter={formatter}
@@ -94,9 +94,25 @@ function StatCard({
     [formatter]
   );
 
+  const textColorClass = useMemo(() => {
+    if (title === "Income") {
+      return "text-emerald-500"; // Green for income
+    } else if (title === "Expense") {
+      return "text-red-500"; // Red for expense
+    } else if (title === "Balance") {
+      // You can add logic for balance based on its value (positive/negative)
+      // For now, let's assume a default color for balance or make it dynamic
+      return value >= 0 ? "text-violet-500" : "text-red-500"; // Violet for positive balance, red for negative
+    }
+    return ""; // Default if no match
+  }, [title, value]); // Added value to dependency array for dynamic balance color
+
   return (
     // <Card className="flex h-full w-full items-center gap-2 p-4">
-    <Card className="flex flex-grow h-full w-full items-center gap-2 p-4 lg:flex-row">
+    <Card
+      className="flex flex-grow h-full w-full items-center gap-2 p-4 lg:flex-row"
+      style={{ backgroundColor: "#D9DCD6" }}
+    >
       {icon}
       <div className="flex flex-col items-start gap-0">
         <p className="text-muted-foreground">{title}</p>
@@ -106,7 +122,7 @@ function StatCard({
           end={value}
           decimals={2}
           formattingFn={formatFn}
-          className="text-2xl"
+          className={`text-2xl font-semibold ${textColorClass}`}
         />
       </div>
     </Card>

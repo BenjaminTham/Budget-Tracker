@@ -10,6 +10,7 @@ import { TransactionType } from "@/lib/types";
 import { UserSettings } from "@prisma/client";
 import { useQuery } from "@tanstack/react-query";
 import React, { useMemo } from "react";
+// import { Button } from ".,/../../components/ui/button";
 
 interface Props {
   userSettings: UserSettings;
@@ -33,7 +34,7 @@ function CategoriesStats({ userSettings, from, to }: Props) {
   }, [userSettings.currency]);
 
   return (
-    <div className="flex w-full flex-wrap gap-2 md:flex-nowrap">
+    <div className="flex w-full h-full flex-wrap md:flex-nowrap justify-evenly gap-2">
       <SkeletonWrapper isLoading={statsQuery.isFetching}>
         <CategoriesCard
           formatter={formatter}
@@ -70,26 +71,32 @@ function CategoriesCard({
     0
   );
   return (
-    <Card className="h-80 w-full col-span-6">
-      <CardHeader>
-        <CardTitle className="grid grid-flow-row justify-between text-muted-foreground md:grid-flow-col">
+    <Card className="h-full w-1/2" style={{ backgroundColor: "#D9DCD6" }}>
+      <CardHeader className="p-0">
+        <CardTitle
+          className="flex justify-start align-middle w-full font-bold pl-2"
+          style={{ color: "#16425B" }}
+        >
           {type === "income" ? "Incomes" : "Expenses"} by category
         </CardTitle>
       </CardHeader>
       <div className="flex item-center justify-between gap-2">
         {filteredData.length === 0 && (
-          <div className="flex h-50 w-full flex-col items-center justify-center">
+          <div
+            className="flex h-full w-full flex-col text-center items-center justify-center font-bold text-xs"
+            style={{ color: "#16425B" }}
+          >
             No data for the selected period
-            <p className="text-sm text-muted-foreground">
+            {/* <p className="text-xs font-normal">
               Try selecting a different period or try adding new{" "}
               {type === "income" ? "income" : "expenses"}
-            </p>
+            </p> */}
           </div>
         )}
 
         {filteredData.length > 0 && (
-          <ScrollArea className="h-60 w-full px-4">
-            <div className="flex w-full flex-col gap-4 p-4">
+          <ScrollArea className="h-60 w-full">
+            <div className="flex w-full flex-col">
               {filteredData.map((item) => {
                 const amount = item._sum.amount || 0;
                 const percentage = (amount * 100) / (total || amount);
@@ -97,13 +104,16 @@ function CategoriesCard({
                 return (
                   <div key={item.category} className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                      <span className="flex items-center text-gray-400">
+                      <span
+                        className="flex items-center font-bold"
+                        style={{ color: "#16425B" }}
+                      >
                         {item.categoryIcon} {item.category}{" "}
-                        <span className="ml-2 text-xs text-muted-foreground">
+                        <span className="ml-2 text-xs ">
                           ({percentage.toFixed(0)}%)
                         </span>
                       </span>
-                      <span className="text-sm text-gray-400">
+                      <span className="text-sm " style={{ color: "#16425B" }}>
                         {formatter.format(amount)}
                       </span>
                     </div>

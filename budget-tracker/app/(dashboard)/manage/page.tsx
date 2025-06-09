@@ -23,24 +23,23 @@ import DeleteCategoryDialog from "../_components/DeleteCategoryDialog";
 function page() {
   return (
     <>
-      <div className="border-b w-full  flex items-center justify-center bg-background">
+      <div className="border-b w-full  flex items-center justify-center bg-[#C4C4C4]">
         <div className="w-5/6 flex flex-wrap items-center justify-between gap-6 py-8">
           <div>
-            <p className="text-3xl font-bold">Manage</p>
-            <p className="text-muted-foreground">
-              Manage your account settings and categories
-            </p>
+            <p className="text-3xl font-bold text-[#16425B]">Manage</p>
           </div>
         </div>
       </div>
 
-      <div className=" flex flex-col h-full w-full items-center">
+      <div className=" flex flex-col h-full w-full items-center bg-[#C4C4C4]">
         <div className="w-5/6 h-full flex flex-col justify-evenly">
-          <Card>
+          <Card className="!bg-[#D9DCD6] text-[#16425B]">
             <CardHeader>
               <CardTitle>Currency</CardTitle>
               <CardDescription>
-                Set your default currency for transactions
+                <span className="text-[#2F6690]">
+                  Set your default currency for transactions
+                </span>
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -73,7 +72,7 @@ function CategoryList({ type }: { type: TransactionType }) {
 
   return (
     <SkeletonWrapper isLoading={categoriesQuery.isLoading}>
-      <Card>
+      <Card className="!bg-[#D9DCD6] text-[#16425B]">
         <CardHeader>
           <CardTitle className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -147,7 +146,7 @@ function CategoryCard({ category }: { category: Category }) {
         category={category}
         trigger={
           <Button
-            className="flex w-full border-separate items-center gap-2 rounded-t-none text-muted-foreground hover:bg-red-500/20"
+            className="flex w-full border-separate items-center gap-2 rounded-t-none text-white bg-[#16425B] hover:bg-red-500"
             variant={"secondary"}
           >
             <TrashIcon className="h-4 w-4" />

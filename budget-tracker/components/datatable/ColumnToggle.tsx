@@ -28,8 +28,8 @@ export function DataTableViewOptions<TData>({
           size="sm"
           className="ml-auto hidden h-8 lg:flex"
         >
-          <Settings2 />
-          View
+          <Settings2 className="text-[#16425B]" />
+          <span className="text-[#16425B]">View</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[150px]">

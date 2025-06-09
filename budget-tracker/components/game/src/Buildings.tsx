@@ -80,9 +80,7 @@ export default {
       id: "building-road",
       height: 1,
       updated: true,
-      update: function () {
-        this.updated = false;
-      },
+      update: function () {},
     };
   },
 

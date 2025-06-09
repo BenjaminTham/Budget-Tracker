@@ -11,6 +11,7 @@ import { GetBalanceStatesResponseType } from "@/app/api/stats/balance/route";
 import { DateToUtcDate } from "@/lib/helpers";
 import { useQuery } from "@tanstack/react-query";
 import { UserSettings } from "@prisma/client";
+import Image from "next/image";
 
 interface Props {
   from: Date;
@@ -19,21 +20,104 @@ interface Props {
 }
 
 const ThreeScene: React.FC = () => {
-  // const statsQuery = useQuery<GetBalanceStatesResponseType>({
-  //   queryKey: ["overview", "stats", from, to],
-  //   queryFn: () =>
-  //     fetch(
-  //       `/api/stats/balance?from=${DateToUtcDate(from)}&to=${DateToUtcDate(to)}`
-  //     ).then((res) => res.json()),
-  // });
-
   const containerRef = useRef<HTMLDivElement>(null);
+  const isBuildingRef = useRef(false);
 
   const [activeToolId, setActiveToolId] = useState<string>("");
   const activeToolRef = useRef(activeToolId);
 
   const [buttonPage, setButtonPageId] = useState<number>(1);
   const buttonPageRef = useRef(buttonPage);
+
+  const saveGameState = (cityToSave: any) => {
+    console.log("Saving game state...");
+
+    // 1. Create the flat array of tiles from the city data
+    const tilesToSave = [];
+    for (let x = 0; x < cityToSave.size; x++) {
+      for (let y = 0; y < cityToSave.size; y++) {
+        const tile = cityToSave.data[x][y];
+        tilesToSave.push({
+          x: tile.x,
+          y: tile.y,
+          // Get the building ID, or null if there's no building
+          buildingId: tile.building ? tile.building.id : null,
+        });
+      }
+    }
+
+    // 2. Create the final save object
+    const gameState = {
+      citySize: cityToSave.size,
+      tiles: tilesToSave,
+      // You can add more things to save here later, like the budget!
+      // budget: currentBudget
+    };
+
+    // 3. Convert the object to a JSON string and save to localStorage
+    // 'citySaveFile' is the key we use to find the data later
+    localStorage.setItem("citySaveFile", JSON.stringify(gameState, null, 2));
+    console.log("Game state saved!");
+  };
+
+  const loadGameState = (cityToLoad: any) => {
+    console.log("Attempting to load game state...");
+
+    // 1. Get the saved data string from localStorage
+    const savedDataString = localStorage.getItem("citySaveFile");
+
+    // 2. Check if any data exists. If not, it's a new game, so do nothing.
+    if (!savedDataString) {
+      console.log("No save file found. Starting a new game.");
+      return;
+    }
+
+    try {
+      // 3. Parse the JSON string back into an object
+      const savedState = JSON.parse(savedDataString);
+
+      // 4. Check if the data is valid (has a size and tiles array)
+      if (savedState && savedState.citySize && savedState.tiles) {
+        console.log("Save file found. Loading city...");
+
+        // 5. Loop through the saved tiles and place the buildings
+        for (const savedTile of savedState.tiles) {
+          const { x, y, buildingId } = savedTile;
+
+          // Make sure the coordinates are valid for the current city grid
+          if (cityToLoad.data[x] && cityToLoad.data[x][y]) {
+            if (buildingId) {
+              // Use the buildingFactory to create a new building instance
+              cityToLoad.data[x][y].building =
+                buildingFactory[buildingId as keyof typeof buildingFactory]();
+            } else {
+              cityToLoad.data[x][y].building = null;
+            }
+          }
+        }
+
+        // You can also load other game data here, like the budget
+        // setBudget(savedState.budget);
+
+        console.log("City loaded successfully!");
+      }
+    } catch (error) {
+      console.error("Failed to load or parse save file.", error);
+      // Optional: Clear corrupted data from localStorage
+      localStorage.removeItem("citySaveFile");
+    }
+  };
+
+  const isCityFull = (cityToCheck: any): boolean => {
+    for (let x = 0; x < cityToCheck.size; x++) {
+      for (let y = 0; y < cityToCheck.size; y++) {
+        if (!cityToCheck.data[x][y].building) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
 
   useEffect(() => {
     activeToolRef.current = activeToolId;
@@ -71,7 +155,8 @@ const ThreeScene: React.FC = () => {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    const city = createCity(17);
+    const city = createCity(7);
+    loadGameState(city);
     let cityUpdateInterval: number;
 
     const camera = createCamera(containerRef, renderer, city.size);
@@ -84,21 +169,33 @@ const ThreeScene: React.FC = () => {
       onMouseUp,
       onScroll,
       // onObjectSelected,
-    } = createScene(scene, camera, renderer, (selectedObject) => {
+    } = createScene(scene, camera, renderer, async (selectedObject) => {
       const { x, y } = selectedObject.userData;
       const tile = city.data[x][y];
 
       if (activeToolRef.current === "building-bulldoze") {
-        console.log("@@tile.building", tile.building);
         tile.building = null;
-        updateScene(city);
+        await updateScene(city);
+        saveGameState(city);
       } else if (activeToolRef.current in buildingFactory && !tile.building) {
-        tile.building =
-          buildingFactory[
-            activeToolRef.current as keyof typeof buildingFactory
-          ]();
-        // console.log(tile.building);
-        updateScene(city);
+        if (isBuildingRef.current) return;
+        isBuildingRef.current = true;
+        try {
+          tile.building =
+            buildingFactory[
+              activeToolRef.current as keyof typeof buildingFactory
+            ]();
+
+          await updateScene(city); // Wait for the visual update to complete
+          saveGameState(city);
+
+          if (isCityFull(city)) {
+            console.log("CITY IS FULL! No more empty tiles.");
+          }
+        } finally {
+          // STEP 4: ALWAYS release the lock, even if an error occurs
+          isBuildingRef.current = false;
+        }
       }
     });
 
@@ -167,9 +264,9 @@ const ThreeScene: React.FC = () => {
   return (
     <div className="h-full w-full flex flex-col align-middle justify-center ">
       {/* Top bar */}
-      {/* <div className="bg-gray-800 text-white p-4">
-        <h1 className="text-lg font-bold">City Builder HUD</h1>
-      </div> */}
+      <div className="bg-[#3A7CA5] text-white p-4">
+        {/* <h1 className="text-lg font-bold">City Builder HUD</h1> */}
+      </div>
 
       {/* Main content: sidebar + game */}
       <div className="flex flex-col h-full w-full align-middle justify-center">
@@ -181,477 +278,495 @@ const ThreeScene: React.FC = () => {
         />
 
         {/* Sidebar */}
-        <div className="w-full flex flex-row justify-center align-middle">
-          {/* <div className="bg-violet-600 h-30 w-30 flex flex-row gap-4 align-middle justify-center p-1 rounded-full mr-3"> */}
-          <button
-            className={` h-30 w-30 text-black text-sm  rounded-full mr-3 flex justify-center align-middle`}
+        <div className=" h-15 w-full flex flex-row justify-center items-center">
+          <button //BULLDOZE BTN
+            className={` h-13 w-1/6 text-black text-sm  rounded-full mr-3 flex justify-center align-middle`}
             onClick={() => setActiveToolId("building-bulldoze")}
             style={{
               backgroundColor:
-                activeToolId === "building-bulldoze" ? "#a855f7" : "#8824fc",
+                activeToolId === "building-bulldoze" ? "#81C3D7" : "#3A7CA5",
             }}
           >
-            <img width={75} height={75} src="/bulldozer.svg" alt="bulldoze" />
+            <Image width={35} height={35} src="/bulldozer.svg" alt="bulldoze" />
           </button>
-          {/* </div> */}
 
-          <div className="bg-violet-600 h-30 w-2xl flex flex-row gap-4 align-middle justify-between p-1 rounded-lg">
-            <div className="bg-stone-200 p-1 gap-2 h-full w-xl flex flex-row align-middle justify-evenly rounded-sm ml-2">
-              <button
+          <div //BUILDING BUTTON GRP
+            className="bg-[#3A7CA5] h-full w-4/6 flex flex-row gap-4 items-center justify-between p-1 rounded-lg"
+          >
+            <div className="bg-stone-200 p-1 gap-2 h-full w-xl flex flex-row align-middle justify-evenly rounded-sm">
+              <button //RESIDENTIAL 1
                 id="building-residential"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    c
+                className={`    text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 1 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-residential"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-residential")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$100</p>
                 </div>
-                <img src="/resident1.png" alt="resident 1" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/resident1.png"
+                  alt="resident 1"
+                />
               </button>
 
-              <button
+              <button //COMMERCIAL
                 id="building-commercial"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 1 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-commercial"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-commercial")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$90</p>
                 </div>
-                <img src="/commercial.png" alt="commercial" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/commercial.png"
+                  alt="commercial"
+                />
               </button>
 
-              <button
+              <button //INDUSTRIAL
                 id="building-industrial"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 1 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-industrial"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-industrial")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$120</p>
                 </div>
-                <img src="/industrial.png" alt="industrial" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/industrial.png"
+                  alt="industrial"
+                />
               </button>
 
-              <button
+              <button //ROAD
                 id="building-road"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 1 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
-                    activeToolId === "building-road" ? "#a855f7" : "#b4b4b4e4",
+                    activeToolId === "building-road" ? "#3A7CA5" : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-road")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$20</p>
                 </div>
-                <img src="/road.png" alt="road" />
+                <Image width={20} height={20} src="/road.png" alt="road" />
               </button>
 
-              <button
+              <button //TREE 1
                 id="building-tree1"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 2 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
-                    activeToolId === "building-tree1" ? "#a855f7" : "#b4b4b4e4",
+                    activeToolId === "building-tree1" ? "#3A7CA5" : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-tree1")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$50</p>
                 </div>
-                <img src="/tree1.png" alt="tree1" />
+                <Image width={20} height={20} src="/tree1.png" alt="tree1" />
               </button>
 
-              <button
+              <button //TREE 2
                 id="building-tree2"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 2 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
-                    activeToolId === "building-tree2" ? "#a855f7" : "#b4b4b4e4",
+                    activeToolId === "building-tree2" ? "#3A7CA5" : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-tree2")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$50</p>
                 </div>
-                <img src="/tree2.png" alt="tree2" />
+                <Image width={20} height={20} src="/tree2.png" alt="tree2" />
               </button>
 
-              <button
+              <button //THREE 3
                 id="building-tree3"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 2 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
-                    activeToolId === "building-tree3" ? "#a855f7" : "#b4b4b4e4",
+                    activeToolId === "building-tree3" ? "#3A7CA5" : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-tree3")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$70</p>
                 </div>
-                <img src="/tree3.png" alt="tree3" />
+                <Image width={20} height={20} src="/tree3.png" alt="tree3" />
               </button>
 
-              <button
+              <button //WELL
                 id="building-well"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 2 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
-                    activeToolId === "building-well" ? "#a855f7" : "#b4b4b4e4",
+                    activeToolId === "building-well" ? "#3A7CA5" : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-well")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$80</p>
                 </div>
-                <img src="/well.png" alt="well" />
+                <Image width={20} height={20} src="/well.png" alt="well" />
               </button>
 
-              <button
+              <button //GAZEBO
                 id="building-gazebo"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
-              ${buttonPage === 2 ? "" : "hidden"}`}
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
+              ${buttonPage === 3 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-gazebo"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-gazebo")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$90</p>
                 </div>
-                <img src="/gazebo.png" alt="gazebo" />
+                <Image width={20} height={20} src="/gazebo.png" alt="gazebo" />
               </button>
 
-              <button
+              <button //RESIDENTIAL 2
                 id="building-residential2"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 3 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-residential2"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-residential2")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$120</p>
                 </div>
-                <img src="/residential2.png" alt="residential2" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/residential2.png"
+                  alt="residential2"
+                />
               </button>
 
-              <button
+              <button //BELLTOWER
                 id="building-belltower"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 3 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-belltower"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-belltower")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$150</p>
                 </div>
-                <img src="/belltower.png" alt="belltower" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/belltower.png"
+                  alt="belltower"
+                />
               </button>
 
-              <button
+              <button //INN
                 id="building-inn"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 3 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
-                    activeToolId === "building-inn" ? "#a855f7" : "#b4b4b4e4",
+                    activeToolId === "building-inn" ? "#3A7CA5" : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-inn")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$170</p>
                 </div>
-                <img src="/inn.png" alt="inn" />
+                <Image width={20} height={20} src="/inn.png" alt="inn" />
               </button>
 
-              <button
+              <button //STORAGE
                 id="building-storage"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
-              ${buttonPage === 3 ? "" : "hidden"}`}
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
+              ${buttonPage === 4 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-storage"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-storage")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$170</p>
                 </div>
-                <img src="/storage.png" alt="storage" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/storage.png"
+                  alt="storage"
+                />
               </button>
 
-              <button
+              <button //TEMPLE
                 id="building-temple"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
-              ${buttonPage === 3 ? "" : "hidden"}`}
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
+              ${buttonPage === 4 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-temple"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-temple")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$190</p>
                 </div>
-                <img src="/temple.png" alt="temple" />
+                <Image width={20} height={20} src="/temple.png" alt="temple" />
               </button>
 
-              <button
+              <button //MILITARY
                 id="building-military"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 4 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-military"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-military")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$210</p>
                 </div>
-                <img src="/military.png" alt="military" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/military.png"
+                  alt="military"
+                />
               </button>
 
-              <button
+              <button //TOWER HOUSE
                 id="building-towerhouse"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
               ${buttonPage === 4 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-towerhouse"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-towerhouse")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$180</p>
                 </div>
-                <img src="/towerhouse.png" alt="towerhouse" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/towerhouse.png"
+                  alt="towerhouse"
+                />
               </button>
 
-              <button
+              <button //TOWNCENTER
                 id="building-towncenter"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
-              ${buttonPage === 4 ? "" : "hidden"}`}
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
+              ${buttonPage === 5 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-towncenter"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-towncenter")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$170</p>
                 </div>
-                <img src="/towncenter.png" alt="towncenter" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/towncenter.png"
+                  alt="towncenter"
+                />
               </button>
 
-              <button
+              <button //WINDMILL
                 id="building-windmill"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
-              ${buttonPage === 4 ? "" : "hidden"}`}
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
+              ${buttonPage === 5 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-windmill"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-windmill")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$120</p>
                 </div>
-                <img src="/windmill.png" alt="windmill" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/windmill.png"
+                  alt="windmill"
+                />
               </button>
 
-              <button
+              <button //WATCHTOWER
                 id="building-watchtower"
-                className={`text-black h-full w-20 text-sm rounded flex flex-col align-top
-                    transition-colors duration-200
-              ${buttonPage === 4 ? "" : "hidden"}`}
+                className={`text-black h-full w-10 text-sm rounded 
+    flex flex-col items-center justify-center gap-1 
+    transition-colors duration-200
+              ${buttonPage === 5 ? "" : "hidden"}`}
                 style={{
                   backgroundColor:
                     activeToolId === "building-watchtower"
-                      ? "#a855f7"
+                      ? "#3A7CA5"
                       : "#b4b4b4e4",
                 }}
                 onClick={() => setActiveToolId("building-watchtower")}
               >
-                <div
-                  className="h-6 w-full rounded-t flex align-middle justify-center"
-                  style={{ backgroundColor: "#523667" }}
-                >
+                <div className="h-6 w-full rounded-t flex align-middle justify-center bg-[#3A7CA5]">
                   <p className=" font-bold text-white text-center">$110</p>
                 </div>
-                <img src="/watchtower.png" alt="watchtower" />
+                <Image
+                  width={20}
+                  height={20}
+                  src="/watchtower.png"
+                  alt="watchtower"
+                />
               </button>
             </div>
+          </div>
 
-            {/* div for button page buttons */}
-            <div className="bg-violet-600 h-full flex flex-col align-middle justify-between p-2">
-              <button
-                className="bg-neutral-400 w-10 h-10 rounded-sm flex align-middle justify-center"
-                onClick={() =>
-                  setButtonPageId((prev) => (prev < 4 ? prev + 1 : prev))
-                }
+          <div //PAGE UP DOWN BTN
+            className="bg-transparent h-full w-1/6 flex flex-col items-center justify-between"
+          >
+            <button
+              className="bg-[#3A7CA5] w-8 h-8 rounded-sm flex align-middle justify-center"
+              onClick={() =>
+                setButtonPageId((prev) => (prev < 5 ? prev + 1 : prev))
+              }
+            >
+              <svg
+                className="w-6 h-6 text-gray-800 dark:text-white"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 14 8"
               >
-                <svg
-                  className="w-6 h-6 text-gray-800 dark:text-white"
-                  aria-hidden="true"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 14 8"
-                >
-                  <path
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M13 7 7.674 1.3a.91.91 0 0 0-1.348 0L1 7"
-                  />
-                </svg>
-              </button>
+                <path
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M13 7 7.674 1.3a.91.91 0 0 0-1.348 0L1 7"
+                />
+              </svg>
+            </button>
 
-              <button
-                className="bg-neutral-400  w-10 h-10 rounded-sm flex align-middle justify-center"
-                onClick={() =>
-                  setButtonPageId((prev) => (prev > 1 ? prev - 1 : prev))
-                }
+            <button
+              className="bg-[#3A7CA5]  w-8 h-8 rounded-sm flex align-middle justify-center"
+              onClick={() =>
+                setButtonPageId((prev) => (prev > 1 ? prev - 1 : prev))
+              }
+            >
+              <svg
+                className="w-6 h-6 text-gray-800 dark:text-white"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 14 8"
               >
-                <svg
-                  className="w-6 h-6 text-gray-800 dark:text-white"
-                  aria-hidden="true"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 14 8"
-                >
-                  <path
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="m1 1 5.326 5.7a.909.909 0 0 0 1.348 0L13 1"
-                  />
-                </svg>
-              </button>
-            </div>
+                <path
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="m1 1 5.326 5.7a.909.909 0 0 0 1.348 0L13 1"
+                />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
