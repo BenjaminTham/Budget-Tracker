@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
@@ -7,9 +8,9 @@ import { createCamera } from "./Camera";
 import { createCity } from "./City";
 import { createScene } from "./Scene";
 import buildingFactory from "./Buildings";
-import { GetBalanceStatesResponseType } from "@/app/api/stats/balance/route";
-import { DateToUtcDate } from "@/lib/helpers";
-import { useQuery } from "@tanstack/react-query";
+// import { GetBalanceStatesResponseType } from "@/app/api/stats/balance/route";
+// import { DateToUtcDate } from "@/lib/helpers";
+// import { useQuery } from "@tanstack/react-query";
 import { UserSettings } from "@prisma/client";
 import Image from "next/image";
 
@@ -20,6 +21,22 @@ interface Props {
 }
 
 const ThreeScene: React.FC = () => {
+  interface Building {
+    id: string;
+    height: number;
+    updated: boolean;
+    update: () => void;
+  }
+
+  interface Tile {
+    x: number;
+    y: number;
+    terrainId: string;
+    building: Building | null;
+  }
+
+  const CITY_SIZE = 7;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const isBuildingRef = useRef(false);
 
@@ -29,85 +46,9 @@ const ThreeScene: React.FC = () => {
   const [buttonPage, setButtonPageId] = useState<number>(1);
   const buttonPageRef = useRef(buttonPage);
 
-  const saveGameState = (cityToSave: any) => {
-    console.log("Saving game state...");
-
-    // 1. Create the flat array of tiles from the city data
-    const tilesToSave = [];
-    for (let x = 0; x < cityToSave.size; x++) {
-      for (let y = 0; y < cityToSave.size; y++) {
-        const tile = cityToSave.data[x][y];
-        tilesToSave.push({
-          x: tile.x,
-          y: tile.y,
-          // Get the building ID, or null if there's no building
-          buildingId: tile.building ? tile.building.id : null,
-        });
-      }
-    }
-
-    // 2. Create the final save object
-    const gameState = {
-      citySize: cityToSave.size,
-      tiles: tilesToSave,
-      // You can add more things to save here later, like the budget!
-      // budget: currentBudget
-    };
-
-    // 3. Convert the object to a JSON string and save to localStorage
-    // 'citySaveFile' is the key we use to find the data later
-    localStorage.setItem("citySaveFile", JSON.stringify(gameState, null, 2));
-    console.log("Game state saved!");
-  };
-
-  const loadGameState = (cityToLoad: any) => {
-    console.log("Attempting to load game state...");
-
-    // 1. Get the saved data string from localStorage
-    const savedDataString = localStorage.getItem("citySaveFile");
-
-    // 2. Check if any data exists. If not, it's a new game, so do nothing.
-    if (!savedDataString) {
-      console.log("No save file found. Starting a new game.");
-      return;
-    }
-
-    try {
-      // 3. Parse the JSON string back into an object
-      const savedState = JSON.parse(savedDataString);
-
-      // 4. Check if the data is valid (has a size and tiles array)
-      if (savedState && savedState.citySize && savedState.tiles) {
-        console.log("Save file found. Loading city...");
-
-        // 5. Loop through the saved tiles and place the buildings
-        for (const savedTile of savedState.tiles) {
-          const { x, y, buildingId } = savedTile;
-
-          // Make sure the coordinates are valid for the current city grid
-          if (cityToLoad.data[x] && cityToLoad.data[x][y]) {
-            if (buildingId) {
-              // Use the buildingFactory to create a new building instance
-              cityToLoad.data[x][y].building =
-                buildingFactory[buildingId as keyof typeof buildingFactory]();
-            } else {
-              cityToLoad.data[x][y].building = null;
-            }
-          }
-        }
-
-        // You can also load other game data here, like the budget
-        // setBudget(savedState.budget);
-
-        console.log("City loaded successfully!");
-      }
-    } catch (error) {
-      console.error("Failed to load or parse save file.", error);
-      // Optional: Clear corrupted data from localStorage
-      localStorage.removeItem("citySaveFile");
-    }
-  };
-
+  /**
+   * @description check if city is full
+   */
   const isCityFull = (cityToCheck: any): boolean => {
     for (let x = 0; x < cityToCheck.size; x++) {
       for (let y = 0; y < cityToCheck.size; y++) {
@@ -119,13 +60,58 @@ const ThreeScene: React.FC = () => {
     return true;
   };
 
+  /**
+   * @description const for mapping city data to be saved to city.json
+   */
+  const cityData: { size: number; data: Tile[] } = {
+    size: CITY_SIZE,
+    data: [],
+  };
+
+  /**
+   * @description used for saving city data
+   */
+  const saveGame = async (city: any) => {
+    for (let x = 0; x < city.size; x++) {
+      for (let y = 0; y < city.size; y++) {
+        const tile = city.data[x][y];
+        cityData.data.push(tile);
+      }
+    }
+
+    await fetch("/api/save-city", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(cityData),
+    });
+    console.log("@@city data: \n", cityData);
+  };
+
+  const loadGame = async (): Promise<any> => {
+    try {
+      const response = await fetch("/api/save-city");
+
+      const cityData = await response.json();
+
+      return cityData;
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
+  };
+
+  /**
+   * @description useEffect to handle the active tool and button page state
+   */
   useEffect(() => {
     activeToolRef.current = activeToolId;
     buttonPageRef.current = buttonPage;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setActiveToolId(""); // or set to some default tool ID
+        setActiveToolId("");
       }
     };
 
@@ -135,138 +121,206 @@ const ThreeScene: React.FC = () => {
     };
   }, [activeToolId, buttonPage]);
 
+  /**
+   * @description useEffect for main game logic
+   * This effect initializes the Three.js scene, camera, renderer, and city.
+   */
   useEffect(() => {
-    activeToolRef.current = activeToolId;
-    if (!containerRef.current) return;
-
-    // Clear previous canvas if any
-    while (containerRef.current.firstChild) {
-      containerRef.current.removeChild(containerRef.current.firstChild);
-    }
-
-    const scene = new THREE.Scene();
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(
-      containerRef.current.clientWidth,
-      containerRef.current.clientHeight
-    );
-    renderer.setClearColor(0x000000, 0);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-    const city = createCity(7);
-    loadGameState(city);
+    let isMounted = true;
+    let renderer: THREE.WebGLRenderer;
     let cityUpdateInterval: number;
+    let handleResize: () => void;
 
-    const camera = createCamera(containerRef, renderer, city.size);
+    (async () => {
+      activeToolRef.current = activeToolId; // activeToolRef sets the current selected button like building or bulldozer button
 
-    const {
-      initialize,
-      update: updateScene,
-      onMouseDown,
-      onMouseMove,
-      onMouseUp,
-      onScroll,
-      // onObjectSelected,
-    } = createScene(scene, camera, renderer, async (selectedObject) => {
-      const { x, y } = selectedObject.userData;
-      const tile = city.data[x][y];
-
-      if (activeToolRef.current === "building-bulldoze") {
-        tile.building = null;
-        await updateScene(city);
-        saveGameState(city);
-      } else if (activeToolRef.current in buildingFactory && !tile.building) {
-        if (isBuildingRef.current) return;
-        isBuildingRef.current = true;
-        try {
-          tile.building =
-            buildingFactory[
-              activeToolRef.current as keyof typeof buildingFactory
-            ]();
-
-          await updateScene(city); // Wait for the visual update to complete
-          saveGameState(city);
-
-          if (isCityFull(city)) {
-            console.log("CITY IS FULL! No more empty tiles.");
-          }
-        } finally {
-          // STEP 4: ALWAYS release the lock, even if an error occurs
-          isBuildingRef.current = false;
-        }
-      }
-    });
-
-    containerRef.current.appendChild(renderer.domElement);
-    const handleContextmenu = (e: { preventDefault: () => void }) => {
-      e.preventDefault();
-    };
-    renderer.domElement.addEventListener("contextmenu", handleContextmenu);
-    renderer.domElement.addEventListener("mousedown", onMouseDown.bind(scene));
-    renderer.domElement.addEventListener("mouseup", onMouseUp.bind(scene));
-    renderer.domElement.addEventListener("mousemove", onMouseMove.bind(scene));
-    renderer.domElement.addEventListener("wheel", onScroll.bind(scene));
-    renderer.domElement.addEventListener("wheel", onScroll.bind(scene));
-
-    const start = () => {
-      scene.clear();
-      initialize(city);
-
-      renderer.setAnimationLoop(update);
-
-      cityUpdateInterval = window.setInterval(() => {
-        city.update();
-        updateScene(city);
-      }, 1000);
-    };
-
-    const update = () => {
-      // city.update();
-      renderer.render(scene, camera.camera);
-    };
-
-    const stop = () => {
-      renderer.setAnimationLoop(null);
-
-      renderer.domElement.removeEventListener("mousedown", onMouseDown);
-      renderer.domElement.removeEventListener("mouseup", onMouseUp);
-      renderer.domElement.removeEventListener("mousemove", onMouseMove);
-      renderer.domElement.removeEventListener("wheel", onScroll);
-      renderer.domElement.removeEventListener("contextmenu", handleContextmenu);
-
-      clearInterval(cityUpdateInterval);
-
-      window.removeEventListener("resize", handleResize);
-      containerRef.current?.removeChild(renderer.domElement);
-    };
-
-    const handleResize = () => {
       if (!containerRef.current) return;
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
 
-      camera.camera.aspect = width / height;
-      camera.camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
-    };
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      const scene = new THREE.Scene();
+      // let cityUpdateInterval: number;
 
-    start();
+      // Clear previous canvas if anyf
+      while (containerRef.current.firstChild) {
+        containerRef.current.removeChild(containerRef.current.firstChild);
+      }
 
-    window.addEventListener("resize", handleResize);
+      renderer.setSize(
+        containerRef.current.clientWidth,
+        containerRef.current.clientHeight
+      );
+      renderer.setClearColor(0x000000, 0);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      const loadCityData = async () => {
+        const savedCityData = await loadGame();
+        if (!isMounted) return null;
+        return savedCityData ? savedCityData : null;
+      };
+      const cityData = await loadCityData();
+      if (!isMounted) return;
+      const city = createCity(CITY_SIZE, cityData);
+      const camera = createCamera(containerRef, renderer, city.size);
+
+      const {
+        initialize,
+        update: updateScene,
+        onMouseDown,
+        onMouseMove,
+        onMouseUp,
+        onScroll,
+        // onObjectSelected,
+      } = createScene(scene, camera, renderer, async (selectedObject) => {
+        const { x, y } = selectedObject.userData;
+        const tile = city.data[x][y];
+
+        if (activeToolRef.current === "building-bulldoze") {
+          /**
+           * @description controls for bulldozer button
+           * if you want to save game, here is the first place to put save function
+           *
+           * @example
+           * saveGame(city)
+           */
+          tile.building = null;
+
+          await updateScene(city);
+          saveGame(city);
+        } else if (activeToolRef.current in buildingFactory && !tile.building) {
+          /**
+           * @description controls for buildings button
+           * if you want to save game, here is the first place to put save function
+           *
+           * @example
+           * saveGame(city)
+           */
+
+          if (isBuildingRef.current) return;
+          isBuildingRef.current = true;
+          try {
+            tile.building =
+              buildingFactory[
+                activeToolRef.current as keyof typeof buildingFactory
+              ]();
+
+            await updateScene(city);
+            saveGame(city);
+
+            if (isCityFull(city)) {
+              console.log("CITY IS FULL! No more empty tiles.");
+            }
+          } finally {
+            isBuildingRef.current = false;
+          }
+        }
+      });
+
+      if (!isMounted) {
+        // Dispose of the renderer that was created but never used.
+        renderer.dispose();
+        return;
+      }
+
+      containerRef.current.appendChild(renderer.domElement);
+      const handleContextmenu = (e: { preventDefault: () => void }) => {
+        e.preventDefault();
+      };
+
+      renderer.domElement.addEventListener("contextmenu", handleContextmenu);
+      renderer.domElement.addEventListener(
+        "mousedown",
+        onMouseDown.bind(scene)
+      );
+      renderer.domElement.addEventListener("mouseup", onMouseUp.bind(scene));
+      renderer.domElement.addEventListener(
+        "mousemove",
+        onMouseMove.bind(scene)
+      );
+      renderer.domElement.addEventListener("wheel", onScroll.bind(scene));
+      renderer.domElement.addEventListener("wheel", onScroll.bind(scene));
+
+      const start = () => {
+        scene.clear();
+
+        initialize(city);
+
+        renderer.setAnimationLoop(() => {
+          renderer.render(scene, camera.camera);
+        });
+
+        cityUpdateInterval = window.setInterval(() => {
+          city.update();
+          updateScene(city);
+        }, 1000);
+      };
+
+      // const update = () => {
+      //   // city.update();
+      //   renderer.render(scene, camera.camera);
+      // };
+
+      // const stop = () => {
+      //   renderer.setAnimationLoop(null);
+
+      //   renderer.domElement.removeEventListener("mousedown", onMouseDown);
+      //   renderer.domElement.removeEventListener("mouseup", onMouseUp);
+      //   renderer.domElement.removeEventListener("mousemove", onMouseMove);
+      //   renderer.domElement.removeEventListener("wheel", onScroll);
+      //   renderer.domElement.removeEventListener(
+      //     "contextmenu",
+      //     handleContextmenu
+      //   );
+
+      //   clearInterval(cityUpdateInterval);
+
+      //   window.removeEventListener("resize", handleResize);
+      //   containerRef.current?.removeChild(renderer.domElement);
+      // };
+
+      handleResize = () => {
+        if (!containerRef.current) return;
+        const width = containerRef.current.clientWidth;
+        const height = containerRef.current.clientHeight;
+
+        camera.camera.aspect = width / height;
+        camera.camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+      };
+
+      start();
+
+      window.addEventListener("resize", handleResize);
+    })();
 
     return () => {
-      stop();
+      // On unmount, set the flag to false.
+      isMounted = false;
+
+      // Clean up resources. Check if they exist first,
+      // as unmounting could happen before they are created.
+      if (cityUpdateInterval) {
+        clearInterval(cityUpdateInterval);
+      }
+      if (handleResize) {
+        window.removeEventListener("resize", handleResize);
+      }
+      if (renderer) {
+        renderer.setAnimationLoop(null);
+        // Safely remove the canvas from the DOM
+        if (renderer.domElement.parentElement) {
+          renderer.domElement.parentElement.removeChild(renderer.domElement);
+        }
+        // Free up GPU resources
+        renderer.dispose();
+      }
     };
   }, []);
 
   return (
     <div className="h-full w-full flex flex-col align-middle justify-center ">
       {/* Top bar */}
-      <div className="bg-[#3A7CA5] text-white p-4">
-        {/* <h1 className="text-lg font-bold">City Builder HUD</h1> */}
-      </div>
+      {/* <div className="bg-[#3A7CA5] text-white p-4">
+      </div> */}
 
       {/* Main content: sidebar + game */}
       <div className="flex flex-col h-full w-full align-middle justify-center">

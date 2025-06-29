@@ -1,5 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export function createCity(size: number) {
+import buildingFactory from "./Buildings";
+
+export function createCity(
+  size: number,
+  loadedData?: { size: number; data: any[] }
+) {
   const data: any = [];
 
   initialize();
@@ -12,6 +17,20 @@ export function createCity(size: number) {
         column.push(tile);
       }
       data.push(column);
+    }
+
+    if (loadedData && loadedData.data) {
+      loadedData.data.forEach((tileData) => {
+        const { x, y, building } = tileData;
+        if (data[x] && data[x][y]) {
+          if (building && building.id in buildingFactory) {
+            data[x][y].building =
+              buildingFactory[building.id as keyof typeof buildingFactory]();
+          } else {
+            data[x][y].building = null;
+          }
+        }
+      });
     }
   }
 
