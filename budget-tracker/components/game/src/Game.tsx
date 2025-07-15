@@ -35,7 +35,7 @@ const ThreeScene: React.FC = () => {
     building: Building | null;
   }
 
-  const CITY_SIZE = 7;
+  // let CITY_SIZE = 5;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const isBuildingRef = useRef(false);
@@ -64,7 +64,7 @@ const ThreeScene: React.FC = () => {
    * @description const for mapping city data to be saved to city.json
    */
   const cityData: { size: number; data: Tile[] } = {
-    size: CITY_SIZE,
+    size: 5,
     data: [],
   };
 
@@ -72,13 +72,15 @@ const ThreeScene: React.FC = () => {
    * @description used for saving city data
    */
   const saveGame = async (city: any) => {
+    const size = city.size;
+
     for (let x = 0; x < city.size; x++) {
       for (let y = 0; y < city.size; y++) {
         const tile = city.data[x][y];
         cityData.data.push(tile);
       }
     }
-
+    cityData.size = size;
     await fetch("/api/save-city", {
       method: "POST",
       headers: {
@@ -86,13 +88,11 @@ const ThreeScene: React.FC = () => {
       },
       body: JSON.stringify(cityData),
     });
-    console.log("@@city data: \n", cityData);
   };
 
   const loadGame = async (): Promise<any> => {
     try {
       const response = await fetch("/api/save-city");
-
       const cityData = await response.json();
 
       return cityData;
@@ -159,7 +159,8 @@ const ThreeScene: React.FC = () => {
       };
       const cityData = await loadCityData();
       if (!isMounted) return;
-      const city = createCity(CITY_SIZE, cityData);
+
+      const city = createCity(cityData.size, cityData);
       const camera = createCamera(containerRef, renderer, city.size);
 
       const {
@@ -175,26 +176,11 @@ const ThreeScene: React.FC = () => {
         const tile = city.data[x][y];
 
         if (activeToolRef.current === "building-bulldoze") {
-          /**
-           * @description controls for bulldozer button
-           * if you want to save game, here is the first place to put save function
-           *
-           * @example
-           * saveGame(city)
-           */
           tile.building = null;
 
           await updateScene(city);
           saveGame(city);
         } else if (activeToolRef.current in buildingFactory && !tile.building) {
-          /**
-           * @description controls for buildings button
-           * if you want to save game, here is the first place to put save function
-           *
-           * @example
-           * saveGame(city)
-           */
-
           if (isBuildingRef.current) return;
           isBuildingRef.current = true;
           try {
@@ -208,6 +194,35 @@ const ThreeScene: React.FC = () => {
 
             if (isCityFull(city)) {
               console.log("CITY IS FULL! No more empty tiles.");
+
+              const newCitySize = city.size + 2;
+              const oldCitySize = city.size;
+              const newCityData: any = [];
+              for (let x = 0; x < newCitySize; x++) {
+                const column = [];
+                for (let y = 0; y < newCitySize; y++) {
+                  if (x < oldCitySize && y < oldCitySize) {
+                    column.push(city.data[x][y]);
+                  } else {
+                    const tile = {
+                      x,
+                      y,
+                      terrainId: "building-grass",
+                      building: null,
+                    };
+                    column.push(tile);
+                  }
+                }
+                newCityData.push(column);
+              }
+              city.data = newCityData;
+              city.size = newCitySize;
+
+              await saveGame(city);
+              scene.clear();
+              await initialize(city);
+              await city.update();
+              await updateScene(city);
             }
           } finally {
             isBuildingRef.current = false;
@@ -254,29 +269,6 @@ const ThreeScene: React.FC = () => {
         }, 1000);
       };
 
-      // const update = () => {
-      //   // city.update();
-      //   renderer.render(scene, camera.camera);
-      // };
-
-      // const stop = () => {
-      //   renderer.setAnimationLoop(null);
-
-      //   renderer.domElement.removeEventListener("mousedown", onMouseDown);
-      //   renderer.domElement.removeEventListener("mouseup", onMouseUp);
-      //   renderer.domElement.removeEventListener("mousemove", onMouseMove);
-      //   renderer.domElement.removeEventListener("wheel", onScroll);
-      //   renderer.domElement.removeEventListener(
-      //     "contextmenu",
-      //     handleContextmenu
-      //   );
-
-      //   clearInterval(cityUpdateInterval);
-
-      //   window.removeEventListener("resize", handleResize);
-      //   containerRef.current?.removeChild(renderer.domElement);
-      // };
-
       handleResize = () => {
         if (!containerRef.current) return;
         const width = containerRef.current.clientWidth;
@@ -317,10 +309,13 @@ const ThreeScene: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-full w-full flex flex-col align-middle justify-center ">
+    <div className="h-full w-full flex flex-col align-middle justify-center">
       {/* Top bar */}
-      {/* <div className="bg-[#3A7CA5] text-white p-4">
-      </div> */}
+      <div className="relative bg-[#3A7CA5] text-white p-4 rounded-t-2xl flex justify-between items-center">
+        <div className="absolute top-5 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-bl-full rounded-br-full w-15 h-10 bg-[#3A7CA5] flex justify-center items-center">
+          <span className="font-bold">3</span>
+        </div>
+      </div>
 
       {/* Main content: sidebar + game */}
       <div className="flex flex-col h-full w-full align-middle justify-center">
