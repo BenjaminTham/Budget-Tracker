@@ -215,6 +215,15 @@ const ThreeScene: React.FC = () => {
                 }
                 newCityData.push(column);
               }
+
+              for (let x = 0; x < oldCitySize; x++) {
+                for (let y = 0; y < oldCitySize; y++) {
+                  if (newCityData[x][y].building) {
+                    newCityData[x][y].building.updated = true;
+                  }
+                }
+              }
+
               city.data = newCityData;
               city.size = newCitySize;
 
