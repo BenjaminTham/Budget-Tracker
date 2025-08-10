@@ -8,11 +8,11 @@ import { createCamera } from "./Camera";
 import { createCity } from "./City";
 import { createScene } from "./Scene";
 import buildingFactory from "./Buildings";
-// import { GetBalanceStatesResponseType } from "@/app/api/stats/balance/route";
-// import { DateToUtcDate } from "@/lib/helpers";
-// import { useQuery } from "@tanstack/react-query";
 import { UserSettings } from "@prisma/client";
 import Image from "next/image";
+import { useQuery } from "@tanstack/react-query";
+import { GetBalanceStatesResponseType } from "@/app/api/stats/balance/route";
+import { DateToUtcDate } from "@/lib/helpers";
 
 interface Props {
   from: Date;
@@ -35,7 +35,22 @@ const ThreeScene: React.FC = () => {
     building: Building | null;
   }
 
-  // let CITY_SIZE = 5;
+  const from = new Date("2025-04-01T00:00:00.000Z");
+  const to = new Date("2025-05-31T23:59:59.999Z");
+  const statsQuery = useQuery<GetBalanceStatesResponseType>({
+    queryKey: ["overview", "stats", from, to],
+    queryFn: () =>
+      fetch(
+        `/api/stats/gamebalance?from=${DateToUtcDate(from)}&to=${DateToUtcDate(
+          to
+        )}`
+      ).then((res) => res.json()),
+  });
+
+  const income = statsQuery.data?.income || 0;
+  const expense = statsQuery.data?.expense || 0;
+  const balance = income - expense;
+  const balanceRef = useRef(balance);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const isBuildingRef = useRef(false);
@@ -45,6 +60,8 @@ const ThreeScene: React.FC = () => {
 
   const [buttonPage, setButtonPageId] = useState<number>(1);
   const buttonPageRef = useRef(buttonPage);
+
+  const isPausedRef = useRef(false);
 
   /**
    * @description check if city is full
@@ -57,14 +74,24 @@ const ThreeScene: React.FC = () => {
         }
       }
     }
+
     return true;
   };
 
   /**
    * @description const for mapping city data to be saved to city.json
    */
-  const cityData: { size: number; data: Tile[] } = {
+  const cityData: {
+    size: number;
+    totalSpent: number;
+    population: number;
+    cityLevel: number;
+    data: Tile[];
+  } = {
     size: 5,
+    totalSpent: 0,
+    population: 0,
+    cityLevel: 0,
     data: [],
   };
 
@@ -72,6 +99,7 @@ const ThreeScene: React.FC = () => {
    * @description used for saving city data
    */
   const saveGame = async (city: any) => {
+    cityData.data = [];
     const size = city.size;
 
     for (let x = 0; x < city.size; x++) {
@@ -80,7 +108,12 @@ const ThreeScene: React.FC = () => {
         cityData.data.push(tile);
       }
     }
+
     cityData.size = size;
+    cityData.totalSpent = totalSpentRef.current;
+    cityData.population = populationRef.current;
+    cityData.cityLevel = cityLevelRef.current;
+
     await fetch("/api/save-city", {
       method: "POST",
       headers: {
@@ -94,13 +127,21 @@ const ThreeScene: React.FC = () => {
     try {
       const response = await fetch("/api/save-city");
       const cityData = await response.json();
+      totalSpentRef.current = cityData.totalSpent;
+      populationRef.current = cityData.population;
+      cityLevelRef.current = cityData.cityLevel;
 
       return cityData;
     } catch (error) {
       console.error(error);
+
       return null;
     }
   };
+
+  const totalSpentRef = useRef(cityData.totalSpent);
+  const populationRef = useRef(cityData.population);
+  const cityLevelRef = useRef(cityData.cityLevel);
 
   /**
    * @description useEffect to handle the active tool and button page state
@@ -121,6 +162,22 @@ const ThreeScene: React.FC = () => {
     };
   }, [activeToolId, buttonPage]);
 
+  useEffect(() => {
+    balanceRef.current = balance;
+  }, [balance]);
+
+  useEffect(() => {
+    totalSpentRef.current = cityData.totalSpent;
+  }, [cityData.totalSpent]);
+
+  useEffect(() => {
+    populationRef.current = cityData.population;
+  }, [cityData.population]);
+
+  useEffect(() => {
+    cityLevelRef.current = cityData.cityLevel;
+  }, [cityData.cityLevel]);
+
   /**
    * @description useEffect for main game logic
    * This effect initializes the Three.js scene, camera, renderer, and city.
@@ -138,8 +195,6 @@ const ThreeScene: React.FC = () => {
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
       const scene = new THREE.Scene();
-      // let cityUpdateInterval: number;
-
       // Clear previous canvas if anyf
       while (containerRef.current.firstChild) {
         containerRef.current.removeChild(containerRef.current.firstChild);
@@ -149,15 +204,20 @@ const ThreeScene: React.FC = () => {
         containerRef.current.clientWidth,
         containerRef.current.clientHeight
       );
+
       renderer.setClearColor(0x000000, 0);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
       const loadCityData = async () => {
         const savedCityData = await loadGame();
         if (!isMounted) return null;
+
         return savedCityData ? savedCityData : null;
       };
+
       const cityData = await loadCityData();
+
       if (!isMounted) return;
 
       const city = createCity(cityData.size, cityData);
@@ -170,34 +230,57 @@ const ThreeScene: React.FC = () => {
         onMouseMove,
         onMouseUp,
         onScroll,
-        // onObjectSelected,
       } = createScene(scene, camera, renderer, async (selectedObject) => {
         const { x, y } = selectedObject.userData;
         const tile = city.data[x][y];
 
         if (activeToolRef.current === "building-bulldoze") {
+          if (!(null == tile.building)) {
+            totalSpentRef.current = totalSpentRef.current - tile.building.price;
+          }
+
+          if (
+            !(null == tile.building) &&
+            (tile.building.id == "building-residential" ||
+              tile.building.id == "building-residential2")
+          ) {
+            populationRef.current -= 1;
+          }
+
           tile.building = null;
 
           await updateScene(city);
           saveGame(city);
         } else if (activeToolRef.current in buildingFactory && !tile.building) {
           if (isBuildingRef.current) return;
+
           isBuildingRef.current = true;
+
           try {
             tile.building =
               buildingFactory[
                 activeToolRef.current as keyof typeof buildingFactory
               ]();
 
+            totalSpentRef.current = totalSpentRef.current + tile.building.price;
+
+            if (
+              tile.building.id == "building-residential" ||
+              tile.building.id == "building-residential2"
+            ) {
+              populationRef.current += 1;
+            }
+
             await updateScene(city);
             saveGame(city);
 
             if (isCityFull(city)) {
-              console.log("CITY IS FULL! No more empty tiles.");
+              cityLevelRef.current += 1;
 
               const newCitySize = city.size + 2;
               const oldCitySize = city.size;
               const newCityData: any = [];
+
               for (let x = 0; x < newCitySize; x++) {
                 const column = [];
                 for (let y = 0; y < newCitySize; y++) {
@@ -210,9 +293,11 @@ const ThreeScene: React.FC = () => {
                       terrainId: "building-grass",
                       building: null,
                     };
+
                     column.push(tile);
                   }
                 }
+
                 newCityData.push(column);
               }
 
@@ -227,11 +312,12 @@ const ThreeScene: React.FC = () => {
               city.data = newCityData;
               city.size = newCitySize;
 
+              isPausedRef.current = true;
+
               await saveGame(city);
               scene.clear();
               await initialize(city);
-              await city.update();
-              await updateScene(city);
+              isPausedRef.current = false;
             }
           } finally {
             isBuildingRef.current = false;
@@ -265,7 +351,6 @@ const ThreeScene: React.FC = () => {
 
       const start = () => {
         scene.clear();
-
         initialize(city);
 
         renderer.setAnimationLoop(() => {
@@ -273,6 +358,7 @@ const ThreeScene: React.FC = () => {
         });
 
         cityUpdateInterval = window.setInterval(() => {
+          if (isPausedRef.current) return;
           city.update();
           updateScene(city);
         }, 1000);
@@ -280,37 +366,40 @@ const ThreeScene: React.FC = () => {
 
       handleResize = () => {
         if (!containerRef.current) return;
+
         const width = containerRef.current.clientWidth;
         const height = containerRef.current.clientHeight;
-
         camera.camera.aspect = width / height;
         camera.camera.updateProjectionMatrix();
         renderer.setSize(width, height);
       };
 
       start();
-
       window.addEventListener("resize", handleResize);
     })();
 
     return () => {
       // On unmount, set the flag to false.
       isMounted = false;
-
       // Clean up resources. Check if they exist first,
       // as unmounting could happen before they are created.
+
       if (cityUpdateInterval) {
         clearInterval(cityUpdateInterval);
       }
+
       if (handleResize) {
         window.removeEventListener("resize", handleResize);
       }
+
       if (renderer) {
         renderer.setAnimationLoop(null);
+
         // Safely remove the canvas from the DOM
         if (renderer.domElement.parentElement) {
           renderer.domElement.parentElement.removeChild(renderer.domElement);
         }
+
         // Free up GPU resources
         renderer.dispose();
       }
@@ -321,8 +410,20 @@ const ThreeScene: React.FC = () => {
     <div className="h-full w-full flex flex-col align-middle justify-center">
       {/* Top bar */}
       <div className="relative bg-[#3A7CA5] text-white p-4 rounded-t-2xl flex justify-between items-center">
-        <div className="absolute top-5 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-bl-full rounded-br-full w-15 h-10 bg-[#3A7CA5] flex justify-center items-center">
-          <span className="font-bold">3</span>
+        <div className="flex flex-row items-center space-x-2">
+          <div className="w-6 h-6 flex items-center justify-center">💰</div>
+          <span className="font-bold">
+            {balance - totalSpentRef.current}/{balance}
+          </span>
+        </div>
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 translate-y-1/2 rounded-full w-16 h-16 bg-[#3A7CA5] flex justify-center items-center">
+          <span className="font-bold text-white text-4xl">
+            {cityLevelRef.current}
+          </span>
+        </div>
+        <div className="flex flex-row items-center space-x-2">
+          <div className="w-6 h-6 flex items-center justify-center">😊</div>
+          <span className="font-bold">{populationRef.current}</span>
         </div>
       </div>
 

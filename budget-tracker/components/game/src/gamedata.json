@@ -1,9 +1,0 @@
-{
-  "citySize": 7,
-  "tiles": [
-    { "x": 0, "y": 0, "buildingId": null },
-    { "x": 0, "y": 1, "buildingId": "building-road" },
-    { "x": 0, "y": 2, "buildingId": "building-residential" },
-    { "x": 0, "y": 3, "buildingId": null }
-  ]
-}
