@@ -1,4 +1,4 @@
-# 🏙️ Fiscal City: Your Budget, Visualized
+# 🏙️ Fiscal: Build a city with your savings!
 
 ### Ever wished managing your budget was as fun as playing SimCity? Now it is.
 
@@ -54,8 +54,8 @@ Want to run your own Fiscal City? Follow these steps.
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
-    cd your-repo-name
+    git clone https://github.com/BenjaminTham/Budget-Tracker.git
+    cd budget-tracker
     ```
 
 2.  **Install dependencies:**
